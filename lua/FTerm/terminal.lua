@@ -13,9 +13,17 @@ function Terminal:new()
             -- Dimensions are treated as percentage
             dimensions  = {
                 height = 0.8,
-                width = 0.8,
+                width = 0.2,
                 row = 0.5,
                 col = 0.5
+            },
+            border = {
+                horizontal = '─',
+                vertical = '|',
+                topLeft = '┌',
+                topRight = '┐',
+                bottomRight = '┘',
+                bottomLeft = '└'
             }
         }
     }
@@ -25,13 +33,21 @@ function Terminal:new()
 end
 
 -- Just to debug
-function Terminal:debug()
-    print(vim.inspect(self))
-end
+-- function Terminal:debug()
+    -- print(vim.inspect(self))
+-- end
 
 -- Terminal:setup takes windows configuration ie. dimensions
 function Terminal:setup(c)
-    c.dimensions = vim.tbl_extend('keep', c.dimensions or {}, self.config.dimensions)
+    if not c then
+        do return end
+    end
+
+
+    local cfg = self.config
+
+    c.dimensions = c.dimensions and vim.tbl_extend('keep', c.dimensions, cfg.dimensions) or cfg.dimensions
+    c.border = c.border and vim.tbl_extend('keep', c.border, cfg.border) or cfg.border
 
     self.config = c
 end
@@ -45,15 +61,15 @@ end
 
 -- Terminal:remember_cursor stores the last cursor position and window
 function Terminal:remember_cursor()
-    self.last_win = fn.winnr()
-    self.last_pos = fn.getpos('.')
+    self.last_win = api.nvim_get_current_win
+    self.last_pos = api.nvim_win_get_cursor(self.last_win)
 end
 
 -- Terminal:restore_cursor restores the cursor to the last remembered position
 function Terminal:restore_cursor()
     if self.last_win and next(self.last_pos) then
-        cmd(self.last_win.." wincmd w")
-        fn.setpos('.', self.last_pos)
+        api.nvim_set_current_win(self.last_win)
+        api.nvim_win_set_cursor(self.last_win, self.last_pos)
 
         self.last_win = nil
         self.last_pos = nil
@@ -95,12 +111,15 @@ function Terminal:create_buf(name, do_border, height, width)
     local buf = api.nvim_create_buf(false, true)
 
     if do_border then
+        local b = self.config.border
+        local h_line = string.rep(b.horizontal, width)
         -- ## Border start ##
-        local border_lines = { '┌' .. string.rep('─', width) .. '┐' }
+        local border_lines = { b.topLeft .. h_line .. b.topRight }
+        local v_border = b.vertical .. string.rep(' ', width) .. b.vertical
         for _ = 1, height do
-          table.insert(border_lines, '|' .. string.rep(' ', width) .. '|')
+            table.insert(border_lines,v_border)
         end
-        table.insert(border_lines, '└' .. string.rep('─', width) .. '┘')
+        table.insert(border_lines,bottomLeft .. h_line .. bottomRight)
         -- ## Border end ##
 
         api.nvim_buf_set_lines(buf, 0, -1, false, border_lines)
